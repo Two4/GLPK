@@ -42,22 +42,37 @@ target_link_libraries(GLPK
   $<$<NOT:$<C_COMPILER_ID:MSVC>>:m>)
 add_library(${PROJECT_NAMESPACE}::GLPK ALIAS GLPK)
 
+add_custom_command(TARGET GLPK POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:GLPK> "${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/examples/cplex/$<TARGET_FILE_NAME:GLPK>"
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:GLPK> "${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/examples/tsp/$<TARGET_FILE_NAME:GLPK>"
+        )
+
 # check system libs functions and headers
 
-# sys/time.h
-if(NOT MSVC)
+# define if windows environment
+if(MSVC)
+    target_compile_definitions(GLPK PUBLIC __WOE__=1)
+else()
+    # sys/time.h
     include(CheckIncludeFile)
     check_include_file(sys/time.h HAS_TIME_H)
     if(HAS_TIME_H)
-        add_compile_definitions(HAVE_SYS_TIME_H=1)
+        target_compile_definitions(GLPK PUBLIC HAVE_SYS_TIME_H=1)
+        include(CheckSymbolExists)
+        check_symbol_exists(gettimeofday sys/time.h HAVE_GETTIMEOFDAY_FUNC)
+        if(HAVE_GETTIMEOFDAY_FUNC)
+            target_compile_definitions(GLPK PUBLIC HAVE_GETTIMEOFDAY=1)
+        endif()
     endif()
 endif()
 
-# gettimeofday function
-include(CheckFunctionExists)
-check_function_exists(gettimeofday, HAVE_GETTIMEOFDAY_FUNC)
-if(HAVE_GETTIMEOFDAY_FUNC)
-    add_compile_definitions(HAVE_GETTIMEOFDAY=1)
+# libgmp/gmp.h
+find_package(GMP)
+if(GMP_FOUND)
+    target_link_libraries(GLPK PRIVATE GMP::gmp)
+    target_compile_definitions(GLPK PUBLIC HAVE_GMP=1)
+else()
+    message(AUTHOR_WARNING "gmp.h/libgmp not found")
 endif()
 
 #add_subdirectory(tests)
